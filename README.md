@@ -1,6 +1,6 @@
-# 👥 SISTEM ABSENSI FACE RECOGNITION
+# 🏋️‍♂️ SISTEM MEMBERSHIP GYM FACE RECOGNITION
 
-Sistem absensi karyawan berbasis teknologi **Face Recognition** menggunakan **Python Flask** dan **MySQL Database** dengan **PyMySQL**. Sistem ini dapat mendeteksi wajah karyawan secara otomatis untuk mencatat absensi masuk dan pulang.
+Sistem manajemen membership gym berbasis teknologi **Face Recognition** menggunakan **Python Flask** dan **MySQL Database** dengan **PyMySQL**. Sistem ini dapat mendeteksi wajah member secara otomatis untuk mencatat absensi gym dan mengelola membership.
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
 ![Flask](https://img.shields.io/badge/Flask-2.3.3-green.svg)
@@ -12,54 +12,61 @@ Sistem absensi karyawan berbasis teknologi **Face Recognition** menggunakan **Py
 ### 🎯 **Face Recognition**
 - ✅ Deteksi wajah real-time menggunakan OpenCV
 - ✅ Machine Learning dengan K-Nearest Neighbors (KNN)
-- ✅ Training model otomatis dari foto karyawan
-- ✅ Akurasi tinggi untuk identifikasi wajah
+- ✅ Training model otomatis dari foto member
+- ✅ Akurasi tinggi untuk identifikasi member gym
 
 ### 📊 **Database MySQL**
-- ✅ **Database**: `absensi_karyawan_db`
+- ✅ **Database**: `gym_membership_db`
 - ✅ **PyMySQL** untuk koneksi database
-- ✅ **3 Tabel**: employees, attendance, activity_log
+- ✅ **3 Tabel**: members, attendance, activity_log
 - ✅ **Foreign Key Constraints** untuk data integrity
 - ✅ **Auto-increment** dan **timestamps**
 
 ### 📱 **Web Interface**
-- ✅ Interface yang user-friendly
-- ✅ Dashboard dengan statistik real-time
-- ✅ Form untuk menambah karyawan baru
-- ✅ Tampilan data absensi mingguan
-- ✅ Multi-camera support
+- ✅ Interface yang user-friendly untuk gym
+- ✅ Dashboard dengan statistik member real-time
+- ✅ Form untuk menambah member baru
+- ✅ Tampilan data kehadiran gym mingguan
+- ✅ Multi-camera support untuk area gym
 
-### 🕒 **Sistem Absensi**
-- ✅ **Absensi Masuk** dan **Absensi Pulang**
-- ✅ **Perhitungan jam kerja** otomatis
-- ✅ **Log aktivitas** lengkap
-- ✅ **Data mingguan** dan **harian**
+### 🏃‍♂️ **Sistem Kehadiran Gym**
+- ✅ **Check-in** dan **Check-out** gym
+- ✅ **Perhitungan durasi workout** otomatis
+- ✅ **Log aktivitas** member lengkap
+- ✅ **Data statistik** mingguan dan harian
+- ✅ **Status membership** dan validasi
 
 ## 🏗️ **Struktur Database**
 
-### 📋 **Tabel `employees`**
+### � **Tabel `members`**
 ```sql
 - id (INT, AUTO_INCREMENT, PRIMARY KEY)
 - name (VARCHAR(100), NOT NULL)
-- bagian (VARCHAR(50), NOT NULL)  
+- membership_type (VARCHAR(50), NOT NULL)
+- phone (VARCHAR(15))
+- email (VARCHAR(100))
+- join_date (DATE, NOT NULL)
+- expiry_date (DATE, NOT NULL)
+- status (ENUM: 'active', 'inactive', 'expired')
 - created_at, updated_at (TIMESTAMP)
 ```
 
 ### 📅 **Tabel `attendance`**
 ```sql
 - id (INT, AUTO_INCREMENT, PRIMARY KEY)
-- employee_id (INT, FOREIGN KEY)
+- member_id (INT, FOREIGN KEY)
 - tanggal (DATE, NOT NULL)
-- jam_masuk, jam_pulang, total_jam_kerja (TIME)
-- status (ENUM: 'hadir', 'tidak_hadir', 'terlambat')
+- jam_masuk, jam_keluar, total_durasi (TIME)
+- status (ENUM: 'hadir', 'tidak_hadir')
+- workout_type (VARCHAR(100))
 - created_at, updated_at (TIMESTAMP)
 ```
 
 ### 📝 **Tabel `activity_log`**
 ```sql
 - id (INT, AUTO_INCREMENT, PRIMARY KEY)
-- employee_id (INT, FOREIGN KEY)
-- activity_type (ENUM: 'login', 'logout', 'add_employee', 'face_recognition')
+- member_id (INT, FOREIGN KEY)
+- activity_type (ENUM: 'checkin', 'checkout', 'add_member', 'face_recognition')
 - description (TEXT)
 - created_at (TIMESTAMP)
 ```
@@ -68,8 +75,8 @@ Sistem absensi karyawan berbasis teknologi **Face Recognition** menggunakan **Py
 
 ### 1️⃣ **Clone Repository**
 ```bash
-git clone https://github.com/[username]/SISTEM-ABSENSI-FACE.git
-cd SISTEM-ABSENSI-FACE
+git clone https://github.com/Fahri-Hilm/Memebership_Gym.git
+cd Memebership_Gym
 ```
 
 ### 2️⃣ **Install Dependencies**
@@ -96,16 +103,21 @@ python init_database.py
 python app.py
 ```
 
-Aplikasi berjalan di: **http://127.0.0.1:5001**
+**Sistem Lama (Employee):** http://127.0.0.1:5001  
+**Sistem Gym (Member):** http://127.0.0.1:5002
+
+> **Note:** Gunakan `gym_app.py` untuk menjalankan sistem gym yang terbaru
 
 ## 📁 **Struktur Project**
 
 ```
-SISTEM-ABSENSI-FACE/
-├── 🐍 app.py                 # Aplikasi Flask utama
+Memebership_Gym/
+├── 🐍 app.py                 # Aplikasi Flask utama (sistem lama)
+├── 🏋️‍♂️ gym_app.py              # Aplikasi Flask gym utama (sistem baru)
 ├── ⚙️ config.py              # Konfigurasi database & aplikasi
 ├── 🗄️ database.py           # Database manager PyMySQL
-├── 📊 models.py              # Model data (Employee, Attendance, ActivityLog)
+├── 📊 models.py              # Model data lama (Employee, Attendance, ActivityLog)
+├── 🏃‍♂️ gym_models.py          # Model data gym (Member, Attendance, ActivityLog)
 ├── 🔧 init_database.py       # Script inisialisasi database
 ├── 🧪 test_database.py       # Script testing database
 ├── 🗑️ clear_database.py      # Script untuk mengosongkan database
@@ -113,31 +125,57 @@ SISTEM-ABSENSI-FACE/
 ├── 🤖 haarcascade_frontalface_default.xml # Face detection model
 ├── 📁 static/
 │   ├── 🤖 face_recognition_model.pkl     # Trained ML model
-│   └── 📸 faces/                         # Foto training karyawan
+│   └── 📸 faces/                         # Foto training member gym
 ├── 📁 templates/
-│   └── 🌐 home.html                      # Template web interface
-├── 📁 Attendance/
-│   └── 📄 *.csv                          # File backup absensi
+│   ├── 🌐 home.html                      # Template web interface lama
+│   ├── 🏋️‍♂️ gym_home.html               # Template gym home
+│   ├── ➕ add_member.html               # Form tambah member
+│   ├── � members_list.html             # Daftar member
+│   └── 📊 statistics.html               # Statistik gym
+├── �📁 Attendance/
+│   └── 📄 *.csv                          # File backup attendance
 └── 📖 README.md                          # Dokumentasi ini
 ```
 
 ## 🎮 **Cara Penggunaan**
 
-### 👤 **Menambah Karyawan Baru**
-1. Klik **"Tambah Karyawan Baru"**
-2. Isi **Nama** dan **Bagian**
+### 👤 **Menambah Member Baru**
+1. Klik **"Tambah Member Baru"**
+2. Isi **Nama**, **Tipe Membership**, **Phone**, **Email**
 3. **Hadap kamera** untuk mengambil 10 foto training
 4. System akan **training model** otomatis
+5. Member siap untuk check-in/out
 
-### 🕐 **Absensi Masuk**
-1. Klik **"Absen Masuk"**
+### 🏃‍♂️ **Check-in Gym**
+1. Klik **"Check-in"**
 2. **Hadap kamera** sampai wajah terdeteksi
-3. System **otomatis mencatat** jam masuk
+3. System **otomatis mencatat** jam masuk gym
+4. Pilih **jenis workout** (opsional)
 
-### 🕔 **Absensi Pulang**
-1. Klik **"Absen Pulang"**
+### �‍♂️ **Check-out Gym**
+1. Klik **"Check-out"**
 2. **Hadap kamera** sampai wajah terdeteksi  
-3. System **otomatis menghitung** jam kerja
+3. System **otomatis menghitung** durasi workout
+4. Data tersimpan untuk statistik
+
+### 📊 **Fitur Khusus Gym**
+
+#### 🏋️‍♂️ **Tipe Membership**
+- **Basic** - Akses gym standar
+- **Premium** - Akses gym + kelas fitness
+- **VIP** - Akses penuh + personal trainer
+
+#### 📈 **Statistik & Analytics**
+- ✅ Total member aktif
+- ✅ Rata-rata durasi workout
+- ✅ Member terpopuler (paling sering datang)
+- ✅ Grafik kehadiran harian/mingguan
+- ✅ Status membership (aktif/expired)
+
+#### 🔔 **Notifikasi Otomatis**
+- ⚠️ Member yang akan expired
+- 📧 Reminder perpanjangan membership
+- 🎉 Selamat datang member baru
 
 ## 🛠️ **Konfigurasi**
 
@@ -148,7 +186,7 @@ DATABASE_CONFIG = {
     'port': 3306,
     'user': 'root',
     'password': '',  # Sesuaikan dengan setup MySQL Anda
-    'database': 'absensi_karyawan_db',
+    'database': 'gym_membership_db',
     'charset': 'utf8mb4'
 }
 ```
@@ -192,13 +230,16 @@ python init_database.py
 
 ## 🚀 **Fitur Mendatang**
 
-- 📊 **Dashboard Analytics** dengan grafik
-- 📱 **Mobile App** (Android/iOS)
-- 📧 **Email Notifications** untuk keterlambatan
-- 📄 **Export Reports** (PDF/Excel)
-- 🌐 **Multi-branch Support**
-- 🔐 **User Authentication & Authorization**
-- 🎨 **Custom Themes**
+- 📊 **Dashboard Analytics** dengan grafik workout
+- 📱 **Mobile App** (Android/iOS) untuk member
+- 📧 **Email Notifications** untuk membership expiry
+- 📄 **Export Reports** (PDF/Excel) untuk statistik gym
+- � **Multi-branch Support** untuk chain gym
+- 🔐 **User Authentication & Authorization** untuk staff
+- 🎨 **Custom Themes** dan branding gym
+- 💳 **Payment Integration** untuk perpanjangan membership
+- 📅 **Class Booking System** untuk kelas fitness
+- 🏆 **Achievement System** dan rewards untuk member
 
 ## 📞 **Support**
 
@@ -214,6 +255,6 @@ MIT License - Bebas digunakan untuk keperluan komersial dan non-komersial.
 
 ---
 
-**🎉 Sistem Absensi Face Recognition - Solusi Absensi Modern untuk Era Digital!**
+**🎉 Sistem Membership Gym Face Recognition - Solusi Manajemen Gym Modern untuk Era Digital!**
 
-*Dibuat dengan ❤️ menggunakan Python, Flask, dan MySQL*
+*Dibuat dengan ❤️ menggunakan Python, Flask, dan MySQL untuk kemudahan manajemen gym*
