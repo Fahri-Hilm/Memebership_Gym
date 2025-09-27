@@ -11,7 +11,7 @@ import shutil
 
 # Import database modules
 from database import get_db_manager
-from models import Employee, Attendance, ActivityLog
+from gym_models import Member, MemberVisit, PointsHistory, GymStatistics
 from config import get_app_config
 import logging
 
@@ -75,8 +75,30 @@ def extract_faces(img):
         return []
 
 def identify_face(facearray):
-    model = joblib.load('static/face_recognition_model.pkl')
-    return model.predict(facearray)
+    try:
+        if not os.path.exists('static/face_recognition_model.pkl'):
+            logger.warning("Model face recognition tidak ditemukan")
+            return ['TIDAK_TERDAFTAR']
+        
+        model = joblib.load('static/face_recognition_model.pkl')
+        prediction = model.predict(facearray)
+        
+        # Validasi apakah prediksi user masih ada di database
+        predicted_user = prediction[0]
+        if '_' in predicted_user:
+            username = predicted_user.split('_')[0]
+            userbagian = predicted_user.split('_')[1]
+            
+            # Cek apakah employee masih terdaftar di database
+            employee = Employee.get_employee_by_name_bagian(username, userbagian)
+            if not employee:
+                logger.warning(f"Employee {username} ({userbagian}) tidak ditemukan di database")
+                return ['TIDAK_TERDAFTAR']
+        
+        return prediction
+    except Exception as e:
+        logger.error(f"Error in identify_face: {e}")
+        return ['TIDAK_TERDAFTAR']
 
 def train_model():
     faces, labels = [], []
@@ -220,8 +242,8 @@ def run_attendance_ajax(mode='masuk'):
         if not cap.isOpened():
             return {'status': 'error', 'message': 'Kamera tidak tersedia'}
 
-        if 'face_recognition_model.pkl' not in os.listdir('static'):
-            return {'status': 'error', 'message': 'Model belum dilatih. Tambahkan wajah dulu.'}
+        # Model tidak ada adalah kondisi normal untuk testing "tidak terdaftar"
+        # Sistem akan return "TIDAK_TERDAFTAR" dari identify_face()
 
         recognition_success = False
         success_user = ""
@@ -239,11 +261,30 @@ def run_attendance_ajax(mode='masuk'):
                 face = cv2.resize(frame[y:y+h, x:x+w], (50, 50))
                 user = identify_face(face.reshape(1, -1))[0]
                 
+                # Cek jika user tidak terdaftar
+                if user == 'TIDAK_TERDAFTAR':
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    return {
+                        'status': 'error',
+                        'message': 'Karyawan tidak terdaftar dalam sistem',
+                        'user': 'TIDAK_TERDAFTAR'
+                    }
+                
                 # Update attendance
-                update_attendance(user, mode)
-                recognition_success = True
-                success_user = user
-                break
+                attendance_success = update_attendance(user, mode)
+                if attendance_success:
+                    recognition_success = True
+                    success_user = user
+                    break
+                else:
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    return {
+                        'status': 'error',
+                        'message': f'Gagal mencatat absensi untuk {user}',
+                        'user': user
+                    }
                 
             attempts += 1
         
@@ -277,12 +318,8 @@ def run_attendance(mode='masuk'):
             date_range_week=date_range_week, tanggal_hari_ini=tanggal_hari_ini,
             selected_camera=selected_camera_id)
 
-    if 'face_recognition_model.pkl' not in os.listdir('static'):
-        return render_template('home.html', mess="Model belum dilatih. Tambahkan wajah dulu.",
-            names=[], rolls=[], tanggal=[], times=[], l=0,
-            totalreg=totalreg(), datetoday2=datetoday2,
-            date_range_week=date_range_week, tanggal_hari_ini=tanggal_hari_ini,
-            selected_camera=selected_camera_id)
+    # Model tidak ada adalah kondisi normal untuk testing "tidak terdaftar"
+    # Kamera tetap akan terbuka dan menampilkan pesan "TIDAK TERDAFTAR"
 
     recognition_success = False
     success_user = ""
@@ -299,24 +336,38 @@ def run_attendance(mode='masuk'):
             face = cv2.resize(frame[y:y+h, x:x+w], (50, 50))
             user = identify_face(face.reshape(1, -1))[0]
             
-            # Tampilkan recognition result
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            cv2.putText(frame, f'{user} - {mode.upper()} TERDETEKSI', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-            
-            # Loading animation setelah face terdeteksi
-            if not recognition_success:
-                loading_counter += 1
-                loading_text = "MEMPROSES" + "." * (loading_counter % 4)
-                cv2.putText(frame, loading_text, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            # Cek jika user tidak terdaftar
+            if user == 'TIDAK_TERDAFTAR':
+                # Tampilkan pesan error untuk user tidak terdaftar
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)  # Red rectangle
+                cv2.putText(frame, 'KARYAWAN TIDAK TERDAFTAR!', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.putText(frame, 'WAJAH TIDAK DIKENALI', (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                cv2.putText(frame, 'Hubungi admin untuk mendaftar', (10, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+                cv2.putText(frame, 'Tekan ESC untuk keluar', (10, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            else:
+                # Tampilkan recognition result untuk user terdaftar
+                cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                cv2.putText(frame, f'{user} - {mode.upper()} TERDETEKSI', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                 
-                # Setelah 30 frames (sekitar 1 detik), proses absensi
-                if loading_counter >= 30:
-                    # Update attendance
-                    update_attendance(user, mode)
-                    recognition_success = True
-                    success_user = user
-                    loading_counter = 0
-                    print(f"[SUCCESS] Attendance recorded for {user} - {mode}")
+                # Loading animation setelah face terdeteksi
+                if not recognition_success:
+                    loading_counter += 1
+                    loading_text = "MEMPROSES" + "." * (loading_counter % 4)
+                    cv2.putText(frame, loading_text, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+                    
+                    # Setelah 30 frames (sekitar 1 detik), proses absensi
+                    if loading_counter >= 30:
+                        # Update attendance
+                        attendance_success = update_attendance(user, mode)
+                        if attendance_success:
+                            recognition_success = True
+                            success_user = user
+                            loading_counter = 0
+                            print(f"[SUCCESS] Attendance recorded for {user} - {mode}")
+                        else:
+                            # Reset jika gagal update attendance
+                            loading_counter = 0
+                            print(f"[ERROR] Failed to record attendance for {user} - {mode}")
         else:
             loading_counter = 0  # Reset loading jika tidak ada wajah
         
@@ -331,7 +382,13 @@ def run_attendance(mode='masuk'):
             if loading_counter >= 90:  # 3 detik (30 fps x 3)
                 break
         else:
-            cv2.putText(frame, f'Mode: {mode.upper()} - Posisikan wajah di depan kamera', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+            # Tampilkan status model dan instruksi
+            model_exists = os.path.exists('static/face_recognition_model.pkl')
+            if not model_exists:
+                cv2.putText(frame, 'STATUS: TIDAK ADA KARYAWAN TERDAFTAR', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                cv2.putText(frame, f'Mode: {mode.upper()} - Semua wajah akan ditolak', (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            else:
+                cv2.putText(frame, f'Mode: {mode.upper()} - Posisikan wajah di depan kamera', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
             cv2.putText(frame, 'Tekan ESC untuk keluar', (10, frame.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         cv2.imshow(f"Absensi {mode.capitalize()}", frame)
@@ -356,20 +413,21 @@ def run_attendance(mode='masuk'):
 def update_attendance(name, mode='masuk'):
     """Update attendance menggunakan database"""
     try:
+        # Cek jika user tidak terdaftar
+        if name == 'TIDAK_TERDAFTAR':
+            logger.warning(f"Upaya absensi oleh user yang tidak terdaftar")
+            return False
+            
         username = name.split('_')[0]
         userbagian = name.split('_')[1]
         current_time = datetime.now().time()
         today = date.today()
         
-        # Dapatkan employee
+        # Dapatkan employee - TIDAK auto-add jika tidak ada
         employee = Employee.get_employee_by_name_bagian(username, userbagian)
         if not employee:
-            # Jika employee belum ada, tambahkan dulu
-            if Employee.add_employee(username, userbagian):
-                employee = Employee.get_employee_by_name_bagian(username, userbagian)
-            else:
-                logger.error(f"Gagal menambah employee: {username} ({userbagian})")
-                return
+            logger.error(f"Employee {username} ({userbagian}) tidak terdaftar di sistem")
+            return False
         
         # Update attendance
         if mode == 'masuk':
@@ -383,11 +441,14 @@ def update_attendance(name, mode='masuk'):
             # Log aktivitas
             ActivityLog.add_log(employee['id'], activity_type, f"Absensi {mode} berhasil")
             logger.info(f"Attendance updated: {username} - {mode} at {current_time}")
+            return True
         else:
             logger.error(f"Gagal update attendance: {username} - {mode}")
+            return False
             
     except Exception as e:
         logger.error(f"Error updating attendance: {e}")
+        return False
 
 @app.route('/get_attendance_data')
 def get_attendance_data():

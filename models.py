@@ -4,7 +4,7 @@ Berisi class-class untuk mengelola data karyawan dan absensi
 """
 
 from database import get_db_manager
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -107,14 +107,16 @@ class Attendance:
                 
                 if updates:
                     # Hitung total jam kerja jika ada jam masuk dan pulang
-                    if jam_pulang and existing['jam_masuk']:
-                        total_jam = Attendance.calculate_work_hours(existing['jam_masuk'], jam_pulang)
-                        updates.append("total_jam_kerja = %s")
-                        params.append(total_jam)
-                    elif jam_masuk and existing['jam_pulang']:
-                        total_jam = Attendance.calculate_work_hours(jam_masuk, existing['jam_pulang'])
-                        updates.append("total_jam_kerja = %s")
-                        params.append(total_jam)
+                    final_jam_masuk = jam_masuk if jam_masuk else existing['jam_masuk']
+                    final_jam_pulang = jam_pulang if jam_pulang else existing['jam_pulang']
+                    
+                    # Selalu hitung ulang total jam kerja jika ada kedua waktu
+                    if final_jam_masuk and final_jam_pulang:
+                        total_jam = Attendance.calculate_work_hours(final_jam_masuk, final_jam_pulang)
+                        if total_jam:
+                            updates.append("total_jam_kerja = %s")
+                            params.append(total_jam)
+                            logger.info(f"Calculated total work hours: {total_jam}")
                     
                     params.extend([employee_id, tanggal])
                     query = f"UPDATE attendance SET {', '.join(updates)} WHERE employee_id = %s AND tanggal = %s"
@@ -174,28 +176,44 @@ class Attendance:
     
     @staticmethod
     def calculate_work_hours(jam_masuk, jam_pulang):
-        """Menghitung total jam kerja"""
+        """Menghitung total jam kerja dan return sebagai timedelta"""
         try:
+            # Handle different input types
             if isinstance(jam_masuk, str):
                 jam_masuk = datetime.strptime(jam_masuk, "%H:%M:%S").time()
+            elif isinstance(jam_masuk, timedelta):
+                # Convert timedelta to time (assuming it's time from midnight)  
+                total_seconds = int(jam_masuk.total_seconds())
+                hours = (total_seconds // 3600) % 24
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                jam_masuk = time(hours, minutes, seconds)
+            
             if isinstance(jam_pulang, str):
                 jam_pulang = datetime.strptime(jam_pulang, "%H:%M:%S").time()
+            elif isinstance(jam_pulang, timedelta):
+                # Convert timedelta to time (assuming it's time from midnight)
+                total_seconds = int(jam_pulang.total_seconds())
+                hours = (total_seconds // 3600) % 24
+                minutes = (total_seconds % 3600) // 60
+                seconds = total_seconds % 60
+                jam_pulang = time(hours, minutes, seconds)
             
             # Convert to datetime untuk perhitungan
             today = date.today()
             dt_masuk = datetime.combine(today, jam_masuk)
             dt_pulang = datetime.combine(today, jam_pulang)
             
-            # Hitung selisih
-            if dt_pulang > dt_masuk:
-                diff = dt_pulang - dt_masuk
-                total_seconds = int(diff.total_seconds())
-                hours = total_seconds // 3600
-                minutes = (total_seconds % 3600) // 60
-                seconds = total_seconds % 60
-                return time(hours, minutes, seconds)
+            # Handle case jika pulang di hari berikutnya (shift malam)
+            if dt_pulang <= dt_masuk:
+                dt_pulang = dt_pulang + timedelta(days=1)
             
-            return None
+            # Hitung selisih sebagai timedelta
+            diff = dt_pulang - dt_masuk
+            
+            logger.info(f"Calculated work hours: {jam_masuk} to {jam_pulang} = {diff}")
+            return diff
+            
         except Exception as e:
             logger.error(f"Gagal menghitung jam kerja: {e}")
             return None
